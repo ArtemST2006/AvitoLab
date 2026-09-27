@@ -3,10 +3,10 @@ GO ?= go
 ARGS ?=
 BINARY ?= bin/trip-service
 MIGRATIONS_DIR ?= migrations
-CONFIG_PATH ?= .env
 
 # DATABASE_URL и остальные настройки берутся из .env, который создает tripgoctl.
 -include .env
+export
 
 GOOSE = $(GO) tool goose -dir $(MIGRATIONS_DIR)
 
@@ -22,8 +22,8 @@ install: ## Скачать зависимости приложения и лок
 build: ## Собрать исполняемый файл
 	$(GO) build -trimpath -o $(BINARY) ./cmd/trip-service
 
-run: ## Запустить приложение с конфигом CONFIG_PATH (.env), параметры передаются через ARGS
-	CONFIG_PATH=$(CONFIG_PATH) $(GO) run ./cmd/trip-service $(ARGS)
+run: ## Запустить приложение: конфиг из CONFIG_PATH, поверх него переменные из .env, параметры через ARGS
+	$(GO) run ./cmd/trip-service $(ARGS)
 
 format: ## Применить gofumpt и goimports
 	$(GO) tool golangci-lint fmt
