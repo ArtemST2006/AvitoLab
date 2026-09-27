@@ -3,6 +3,7 @@ GO ?= go
 ARGS ?=
 BINARY ?= bin/trip-service
 MIGRATIONS_DIR ?= migrations
+CONFIG_PATH ?= .env
 
 # DATABASE_URL и остальные настройки берутся из .env, который создает tripgoctl.
 -include .env
@@ -21,8 +22,8 @@ install: ## Скачать зависимости приложения и лок
 build: ## Собрать исполняемый файл
 	$(GO) build -trimpath -o $(BINARY) ./cmd/trip-service
 
-run: ## Запустить приложение, дополнительные параметры передаются через ARGS
-	$(GO) run ./cmd/trip-service $(ARGS)
+run: ## Запустить приложение с конфигом CONFIG_PATH (.env), параметры передаются через ARGS
+	CONFIG_PATH=$(CONFIG_PATH) $(GO) run ./cmd/trip-service $(ARGS)
 
 format: ## Применить gofumpt и goimports
 	$(GO) tool golangci-lint fmt
@@ -50,5 +51,12 @@ migrate-status: ## Показать состояние миграций
 migrate-create: ## Создать SQL-миграцию, имя передается через NAME
 	@test -n "$(NAME)" || { echo "Укажите имя: make migrate-create NAME=create_trips"; exit 1; }
 	$(GOOSE) -s create $(NAME) sql
+
+generate:
+	$(GO) tool oapi-codegen \
+	-generate types,chi-server \
+	-package api \
+	-o internal/generated/api.gen.go \
+	contracts/openapi/trip-service.openapi.yaml
 
 # TODO: tripgoctl environment start / stop
