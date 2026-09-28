@@ -46,8 +46,8 @@ func MustLoad() *Config {
 	var cfg Config
 
 	configPath := os.Getenv("CONFIG_PATH")
-	if configPath == "" {
-		log.Print("CONFIG_PATH is not set, loading config from environment only")
+	if _, err := os.Stat(configPath); configPath == "" || os.IsNotExist(err) {
+		log.Printf("config file %q not found, loading config from environment only", configPath)
 
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			log.Fatalf("failed to load config from environment: %v", err)
