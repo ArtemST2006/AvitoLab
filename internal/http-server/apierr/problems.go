@@ -35,6 +35,11 @@ func DriverBusy(detail string) api.Problem {
 	return newProblem(http.StatusConflict, "driver_busy", "driver-busy", "Driver busy", detail)
 }
 
+// IdempotencyConflict — ключ идемпотентности уже использован с другим телом запроса.
+func IdempotencyConflict(detail string) api.Problem {
+	return newProblem(http.StatusConflict, "idempotency_conflict", "idempotency-conflict", "Idempotency conflict", detail)
+}
+
 // Internal — все остальные ошибки. Детали внутренней ошибки клиенту не отдаем.
 func Internal() api.Problem {
 	return newProblem(http.StatusInternalServerError, "internal_error", "internal-error", "Internal server error", "")

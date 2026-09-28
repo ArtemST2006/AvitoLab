@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	api "github.com/ArtemST2006/AvitoLab/internal/generated"
+	"github.com/ArtemST2006/AvitoLab/internal/schemas"
 	"github.com/ArtemST2006/AvitoLab/internal/storage/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,6 +18,9 @@ type Trip interface {
 	CreateTrip(ctx context.Context, data api.TripData) (api.Trip, error)
 	GetTrip(ctx context.Context, tripID uuid.UUID) (api.Trip, error)
 	FinishTrip(ctx context.Context, tripID api.TripId) (api.Trip, error)
+
+	GetIdempotency(ctx context.Context, idempotencyKey string) (schemas.IdempotencyRecord, error)
+	SetIdempotency(ctx context.Context, record schemas.IdempotencyRecord) error
 }
 
 // History — журнал смены статусов поездок.

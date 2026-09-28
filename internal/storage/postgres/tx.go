@@ -12,15 +12,13 @@ type key struct{}
 
 // TransactionManager открывает транзакции и кладет их в контекст, откуда их берет giver.
 type TransactionManager struct {
-	pool     *pgxpool.Pool
-	isoLevel pgx.TxIsoLevel
+	pool *pgxpool.Pool
 }
 
 // NewTransactionManager создает TransactionManager с уровнем изоляции Read Committed.
 func NewTransactionManager(pool *pgxpool.Pool) *TransactionManager {
 	return &TransactionManager{
-		pool:     pool,
-		isoLevel: pgx.ReadCommitted,
+		pool: pool,
 	}
 }
 
@@ -32,7 +30,12 @@ func (t *TransactionManager) Do(ctx context.Context, fn func(ctx context.Context
 		return fn(ctx)
 	}
 
-	tx, err := t.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: t.isoLevel})
+	level, ok := ctx.Value("level").(pgx.TxIsoLevel)
+	if !ok {
+		level = pgx.ReadCommitted
+	}
+
+	tx, err := t.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: level})
 	if err != nil {
 		return fmt.Errorf("failed begin transaction: %w", err)
 	}

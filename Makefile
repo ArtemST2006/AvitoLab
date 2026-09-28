@@ -50,7 +50,7 @@ migrate-status: ## Показать состояние миграций
 
 migrate-create: ## Создать SQL-миграцию, имя передается через NAME
 	@test -n "$(NAME)" || { echo "Укажите имя: make migrate-create NAME=create_trips"; exit 1; }
-	$(GOOSE) -s create $(NAME) sql
+	$(GOOSE) create $(NAME) sql
 
 generate:
 	$(GO) tool oapi-codegen \

@@ -27,6 +27,9 @@ var (
 
 	// ErrNotFound — запрошенной строки в PostgreSQL нет.
 	ErrNotFound = errors.New("not found")
+
+	// ErrIdempotencyExists — живой ключ идемпотентности уже занят другим запросом.
+	ErrIdempotencyExists = errors.New("idempotency key exists")
 )
 
 // NewPool создает пул подключений к PostgreSQL и проверяет, что база доступна.

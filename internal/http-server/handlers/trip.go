@@ -10,6 +10,7 @@ import (
 	api "github.com/ArtemST2006/AvitoLab/internal/generated"
 	"github.com/ArtemST2006/AvitoLab/internal/http-server/apierr"
 	"github.com/ArtemST2006/AvitoLab/internal/lib/logger/sl"
+	"github.com/ArtemST2006/AvitoLab/internal/schemas"
 	"github.com/ArtemST2006/AvitoLab/internal/storage/postgres"
 	"github.com/go-chi/render"
 )
@@ -164,7 +165,7 @@ func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripID api.T
 //	400: BadRequest
 //	409: CreateTripConflict
 //	500: InternalError
-func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {
+func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.CreateTripParams) {
 	const op = "hendlers.trip.CreateTrip"
 
 	log := s.log.With(
@@ -189,9 +190,29 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 		return
 	}
 
-	var trip api.Trip
+	var (
+		trip     api.Trip
+		replayed bool // уже создали ранее
+		bodyHash = hash(body)
+	)
 
 	err := s.txManager.Do(r.Context(), func(ctx context.Context) error {
+		if params.IdempotencyKey != nil {
+			// идемпотентный сценарий
+			// если есть ключь и хэш тела одинаковый -> Get и response 200
+			// сли нет ключа, создаём запись в idempotency и вываливаемся из условия
+			// если есть ключь но хэши разные -> response 409 conflict
+			//
+			// Ключ занимается первым: параллельный запрос с тем же ключом ждет нас на нем,
+			// а не упирается в занятого водителя.
+			var errIdem error
+			trip, replayed, errIdem = s.reserveIdempotencyKey(ctx, *params.IdempotencyKey, bodyHash)
+			if errIdem != nil || replayed {
+				return errIdem
+			}
+		}
+
+		// азовый сценарий
 		ctxCreate, cancel := context.WithTimeout(ctx, s.queryTimeout)
 		defer cancel()
 
@@ -204,9 +225,32 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 		ctxHistory, cancel := context.WithTimeout(ctx, s.queryTimeout)
 		defer cancel()
 
-		return s.repo.AppendRecord(ctxHistory, trip.Id, nil, trip.Status, trip.StartedAt)
+		if err := s.repo.AppendRecord(ctxHistory, trip.Id, nil, trip.Status, trip.StartedAt); err != nil {
+			return err
+		}
+
+		if params.IdempotencyKey == nil {
+			return nil
+		}
+
+		ctxIdem, cancel := context.WithTimeout(ctx, s.queryTimeout)
+		defer cancel()
+
+		return s.repo.SetIdempotency(ctxIdem, schemas.IdempotencyRecord{
+			Key:      *params.IdempotencyKey,
+			BodyHash: bodyHash,
+			TripID:   trip.Id,
+		})
 	})
 
+	if errors.Is(err, ErrIdempotencyConflict) {
+		log.Info("idempotency conflict", sl.Err(err), slog.String("key", params.IdempotencyKey.String()))
+
+		problem := apierr.IdempotencyConflict("Idempotency-Key was already used with a different request body")
+		apierr.Write(w, r, problem)
+
+		return
+	}
 	if errors.Is(err, postgres.ErrDriverBusy) {
 		log.Info("driver busy", sl.Err(err), slog.String("driverId", body.DriverId.String()))
 
@@ -231,6 +275,10 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.Create
 	)
 
 	w.Header().Set("Location", "/api/v1/trips/"+trip.Id.String())
-	render.Status(r, http.StatusCreated)
+	if replayed {
+		render.Status(r, http.StatusOK)
+	} else {
+		render.Status(r, http.StatusCreated)
+	}
 	render.JSON(w, r, trip)
 }

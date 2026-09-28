@@ -7,6 +7,7 @@ import (
 	"time"
 
 	api "github.com/ArtemST2006/AvitoLab/internal/generated"
+	"github.com/ArtemST2006/AvitoLab/internal/schemas"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 
@@ -135,4 +136,87 @@ func (r *TripRepository) FinishTrip(ctx context.Context, tripID api.TripId) (api
 	}
 
 	return t, nil
+}
+
+// IdempotencyTTL - срок жизни ключа идемпотентности.
+const IdempotencyTTL = time.Hour
+
+// GetIdempotency возвращает запись по ключу. Если ее нет — ErrNotFound.
+func (r *TripRepository) GetIdempotency(ctx context.Context, idempotencyKey string) (schemas.IdempotencyRecord, error) {
+	query, args, err := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
+		Select("key", "body_hash", "trip_id", "created_at").
+		From("idempotency").
+		Where(squirrel.Eq{"key": idempotencyKey}).
+		Where(squirrel.Gt{"created_at": time.Now().Add(-IdempotencyTTL)}).
+		ToSql()
+	if err != nil {
+		return schemas.IdempotencyRecord{}, fmt.Errorf("build select idempotency: %w", err)
+	}
+
+	var t schemas.IdempotencyRecord
+	err = giver(ctx, r.pool).QueryRow(ctx, query, args...).Scan(
+		&t.Key, &t.BodyHash, &t.TripID, &t.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return schemas.IdempotencyRecord{}, ErrNotFound
+	}
+	if err != nil {
+		return schemas.IdempotencyRecord{}, fmt.Errorf("get idempotency record: %w", err)
+	}
+
+	return t, nil
+}
+
+// SetIdempotency сохраняет ключ.
+//   - record.TripID == uuid.Nil - занять ключ до создания поездки. Если ключ уже
+//     есть — ErrIdempotencyExists.
+func (r *TripRepository) SetIdempotency(ctx context.Context, record schemas.IdempotencyRecord) error {
+	db := giver(ctx, r.pool)
+	sb := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+
+	if record.TripID != uuid.Nil {
+		query, args, err := sb.Update("idempotency").
+			Set("trip_id", record.TripID).
+			Where(squirrel.Eq{"key": record.Key}).
+			ToSql()
+		if err != nil {
+			return fmt.Errorf("build update idempotency: %w", err)
+		}
+
+		if _, err := db.Exec(ctx, query, args...); err != nil {
+			return fmt.Errorf("update idempotency: %w", err)
+		}
+
+		return nil
+	}
+
+	query, args, err := sb.Delete("idempotency").
+		Where(squirrel.Eq{"key": record.Key}).
+		Where(squirrel.LtOrEq{"created_at": time.Now().Add(-IdempotencyTTL)}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build delete expired idempotency: %w", err)
+	}
+
+	if _, err = db.Exec(ctx, query, args...); err != nil {
+		return fmt.Errorf("delete expired idempotency: %w", err)
+	}
+
+	query, args, err = sb.Insert("idempotency").
+		Columns("key", "body_hash").
+		Values(record.Key, record.BodyHash).
+		Suffix("ON CONFLICT (key) DO NOTHING").
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("build insert idempotency: %w", err)
+	}
+
+	tag, err := db.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("insert idempotency: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrIdempotencyExists
+	}
+
+	return nil
 }
