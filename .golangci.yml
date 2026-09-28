@@ -33,6 +33,11 @@ linters:
       - linters:
           - gosec
         text: "G404"
+      # Путь к конфигу приходит из CONFIG_PATH, его задает тот, кто запускает сервис.
+      - path: internal/config/
+        linters:
+          - gosec
+        text: "G703|G706"
 
 formatters:
   enable:

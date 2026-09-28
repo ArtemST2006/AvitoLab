@@ -10,3 +10,6 @@ bin/
 # Отчеты покрытия
 coverage.out
 coverage.html
+
+# personal
+personal/
