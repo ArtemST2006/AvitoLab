@@ -193,7 +193,7 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 		bodyHash = hash(body)
 	)
 
-	err := s.txManager.Do(ctx, func(context.Context) error {
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		if params.IdempotencyKey != nil {
 			// идемпотентный сценарий
 			// если есть ключь и хэш тела одинаковый -> Get и response 200
