@@ -84,15 +84,15 @@ func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripID api.T
 		slog.String("op", op),
 	)
 
+	ctx, cancel := context.WithTimeout(r.Context(), s.queryTimeout)
+	defer cancel()
+
 	var trip api.Trip
 
-	err := s.txManager.Do(r.Context(), func(ctx context.Context) error {
+	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		var errGetTrip error
 
-		ctxF, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
-
-		if trip, errGetTrip = s.repo.GetTrip(ctxF, tripID); errGetTrip != nil {
+		if trip, errGetTrip = s.repo.GetTrip(ctx, tripID); errGetTrip != nil {
 			return errGetTrip
 		}
 		if stat := trip.Status; stat == api.Completed {
@@ -101,19 +101,13 @@ func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripID api.T
 
 		var errFinishTrip error
 
-		ctxS, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
-
-		trip, errFinishTrip = s.repo.FinishTrip(ctxS, tripID)
+		trip, errFinishTrip = s.repo.FinishTrip(ctx, tripID)
 		if errFinishTrip != nil {
 			return errFinishTrip
 		}
 
-		ctxT, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
-
 		from := api.Active
-		return s.repo.AppendRecord(ctxT, trip.Id, &from, api.Completed, *trip.FinishedAt)
+		return s.repo.AppendRecord(ctx, trip.Id, &from, api.Completed, *trip.FinishedAt)
 	})
 
 	if errors.Is(err, ErrAlreadyComplited) {
@@ -172,6 +166,9 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 		slog.String("op", op),
 	)
 
+	ctx, cancel := context.WithTimeout(r.Context(), s.queryTimeout)
+	defer cancel()
+
 	var body api.TripData
 	if err := render.DecodeJSON(r.Body, &body); err != nil {
 		log.Error("invalid request body", sl.Err(err))
@@ -196,7 +193,7 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 		bodyHash = hash(body)
 	)
 
-	err := s.txManager.Do(r.Context(), func(ctx context.Context) error {
+	err := s.txManager.Do(ctx, func(context.Context) error {
 		if params.IdempotencyKey != nil {
 			// идемпотентный сценарий
 			// если есть ключь и хэш тела одинаковый -> Get и response 200
@@ -213,19 +210,14 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 		}
 
 		// азовый сценарий
-		ctxCreate, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
 
 		var errCreate error
-		trip, errCreate = s.repo.CreateTrip(ctxCreate, body)
+		trip, errCreate = s.repo.CreateTrip(ctx, body)
 		if errCreate != nil {
 			return errCreate
 		}
 
-		ctxHistory, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
-
-		if err := s.repo.AppendRecord(ctxHistory, trip.Id, nil, trip.Status, trip.StartedAt); err != nil {
+		if err := s.repo.AppendRecord(ctx, trip.Id, nil, trip.Status, trip.StartedAt); err != nil {
 			return err
 		}
 
@@ -233,10 +225,7 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 			return nil
 		}
 
-		ctxIdem, cancel := context.WithTimeout(ctx, s.queryTimeout)
-		defer cancel()
-
-		return s.repo.SetIdempotency(ctxIdem, schemas.IdempotencyRecord{
+		return s.repo.SetIdempotency(ctx, schemas.IdempotencyRecord{
 			Key:      *params.IdempotencyKey,
 			BodyHash: bodyHash,
 			TripID:   trip.Id,
