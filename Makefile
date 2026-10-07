@@ -54,7 +54,7 @@ migrate-create: ## Создать SQL-миграцию, имя передает�
 
 generate:
 	$(GO) tool oapi-codegen \
-	-generate types,chi-server \
+	-generate types,chi-server,spec \
 	-package api \
 	-o internal/generated/api.gen.go \
 	contracts/openapi/trip-service.openapi.yaml

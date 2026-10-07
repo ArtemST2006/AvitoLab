@@ -92,7 +92,7 @@ func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, tripID api.T
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		var errGetTrip error
 
-		if trip, errGetTrip = s.repo.GetTrip(ctx, tripID); errGetTrip != nil {
+		if trip, errGetTrip = s.repo.GetTripForUpdate(ctx, tripID); errGetTrip != nil {
 			return errGetTrip
 		}
 		if stat := trip.Status; stat == api.Completed {
@@ -169,21 +169,10 @@ func (s *Server) CreateTrip(w http.ResponseWriter, r *http.Request, params api.C
 	ctx, cancel := context.WithTimeout(r.Context(), s.queryTimeout)
 	defer cancel()
 
-	var body api.TripData
-	if err := render.DecodeJSON(r.Body, &body); err != nil {
-		log.Error("invalid request body", sl.Err(err))
-
-		problem := apierr.InvalidRequest("bad request")
-		apierr.Write(w, r, problem)
-
-		return
-	}
-	if err := validateTripData(body); err != nil {
-		log.Error("invalid request body", sl.Err(err))
-
-		problem := apierr.InvalidRequest(fmt.Sprintf("bad request: %v", err))
-		apierr.Write(w, r, problem)
-
+	body, ok := r.Context().Value(tripBodyKey{}).(api.TripData)
+	if !ok {
+		log.Error("validated trip body is missing")
+		apierr.Write(w, r, apierr.Internal())
 		return
 	}
 

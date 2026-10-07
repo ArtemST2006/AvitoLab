@@ -49,7 +49,7 @@ func NewPool(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("create pool: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, 3*cfg.QueryTimeout)
+	pingCtx, cancel := context.WithTimeout(ctx, cfg.ConnectTimeout)
 	defer cancel()
 
 	if err := pool.Ping(pingCtx); err != nil {

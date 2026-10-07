@@ -26,7 +26,7 @@ func (s *Server) Ready(w http.ResponseWriter, r *http.Request) {
 		slog.String("op", op),
 	)
 
-	ctx, cancel := context.WithTimeout(r.Context(), s.readyTimeout)
+	ctx, cancel := context.WithTimeout(r.Context(), s.queryTimeout)
 	defer cancel()
 
 	if err := s.repo.Ping(ctx); err != nil {

@@ -19,6 +19,7 @@ import (
 	"github.com/ArtemST2006/AvitoLab/internal/storage"
 	"github.com/ArtemST2006/AvitoLab/internal/storage/postgres"
 	"github.com/go-chi/chi/v5"
+	openapimw "github.com/oapi-codegen/nethttp-middleware"
 )
 
 const (
@@ -50,6 +51,21 @@ func main() {
 	log.Info("PostgreSQL up with pgxpool")
 
 	router := chi.NewRouter()
+	router.Use(handlers.LimitBody)
+
+	spec, err := api.GetSpec()
+	if err != nil {
+		log.Error("failed to load OpenAPI spec", sl.Err(err))
+		return
+	}
+
+	openAPI := openapimw.OapiRequestValidatorWithOptions(spec, &openapimw.Options{
+		DoNotValidateServers: true,
+		ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, r *http.Request, _ openapimw.ErrorHandlerOpts) {
+			log.InfoContext(r.Context(), "invalid request", sl.Err(err))
+			apierr.Write(w, r, apierr.InvalidRequest("invalid body"))
+		},
+	})
 
 	repo := storage.NewRepository(pool)
 	txManager := postgres.NewTransactionManager(pool)
@@ -57,6 +73,10 @@ func main() {
 		BaseRouter: router,
 		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			apierr.Write(w, r, apierr.InvalidRequest(err.Error()))
+		},
+		Middlewares: []api.MiddlewareFunc{
+			handlers.ValidateTripBody(log),
+			openAPI,
 		},
 	})
 

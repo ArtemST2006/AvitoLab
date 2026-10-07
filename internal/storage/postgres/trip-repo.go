@@ -72,9 +72,18 @@ func (r *TripRepository) CreateTrip(ctx context.Context, data api.TripData) (api
 	return t, nil
 }
 
-// GetTrip возвращает поездку по id и блокирует строку.
+// GetTrip возвращает поездку по id без блокировки строки.
 func (r *TripRepository) GetTrip(ctx context.Context, tripID uuid.UUID) (api.Trip, error) {
-	query, args, err := squirrel.StatementBuilder.
+	return r.getTrip(ctx, tripID, false)
+}
+
+// GetTripForUpdate блокирует строку поездки до конца текущей транзакции.
+func (r *TripRepository) GetTripForUpdate(ctx context.Context, tripID uuid.UUID) (api.Trip, error) {
+	return r.getTrip(ctx, tripID, true)
+}
+
+func (r *TripRepository) getTrip(ctx context.Context, tripID uuid.UUID, forUpdate bool) (api.Trip, error) {
+	builder := squirrel.StatementBuilder.
 		PlaceholderFormat(squirrel.Dollar).
 		Select(
 			"id", "user_id", "driver_id",
@@ -82,9 +91,11 @@ func (r *TripRepository) GetTrip(ctx context.Context, tripID uuid.UUID) (api.Tri
 			"price", "status", "started_at", "finished_at",
 		).
 		From("trips").
-		Where(squirrel.Eq{"id": tripID}).
-		Suffix("FOR UPDATE").
-		ToSql()
+		Where(squirrel.Eq{"id": tripID})
+	if forUpdate {
+		builder = builder.Suffix("FOR UPDATE")
+	}
+	query, args, err := builder.ToSql()
 	if err != nil {
 		return api.Trip{}, fmt.Errorf("build select trip: %w", err)
 	}

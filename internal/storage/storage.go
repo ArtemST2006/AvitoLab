@@ -17,6 +17,7 @@ import (
 type Trip interface {
 	CreateTrip(ctx context.Context, data api.TripData) (api.Trip, error)
 	GetTrip(ctx context.Context, tripID uuid.UUID) (api.Trip, error)
+	GetTripForUpdate(ctx context.Context, tripID uuid.UUID) (api.Trip, error)
 	FinishTrip(ctx context.Context, tripID api.TripId) (api.Trip, error)
 
 	GetIdempotency(ctx context.Context, idempotencyKey string) (schemas.IdempotencyRecord, error)

@@ -17,10 +17,9 @@ var ErrAlreadyComplited = errors.New("trip already complited")
 type Server struct {
 	api.Unimplemented
 
-	log          *slog.Logger
-	repo         *storage.Repository
-	txManager    TxManager
-	readyTimeout time.Duration
+	log       *slog.Logger
+	repo      *storage.Repository
+	txManager TxManager
 
 	queryTimeout time.Duration
 }
@@ -32,7 +31,6 @@ func NewServer(log *slog.Logger, repo *storage.Repository, txManager TxManager, 
 	return &Server{
 		log:          log,
 		repo:         repo,
-		readyTimeout: time.Second * 3,
 		txManager:    txManager,
 		queryTimeout: queryTimeout,
 	}

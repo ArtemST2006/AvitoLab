@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,12 +44,15 @@ func (t *TransactionManager) Do(ctx context.Context, fn func(ctx context.Context
 	ctxTransaction := context.WithValue(ctx, key{}, tx)
 
 	defer func() {
+		ctxRollback, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer cancel()
+
 		if r := recover(); r != nil {
-			_ = tx.Rollback(ctx)
+			_ = tx.Rollback(ctxRollback)
 			panic(r)
 		}
 		if err != nil {
-			_ = tx.Rollback(ctx)
+			_ = tx.Rollback(ctxRollback)
 			return
 		}
 		if commitErr := tx.Commit(ctx); commitErr != nil {
