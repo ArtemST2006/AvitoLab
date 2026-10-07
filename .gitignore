@@ -6,3 +6,10 @@
 bin/
 
 .DS_Store
+
+# Отчеты покрытия
+coverage.out
+coverage.html
+
+# personal
+personal/
