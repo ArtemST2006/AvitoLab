@@ -1,0 +1,53 @@
+# Единые правила форматирования и статического анализа Go-кода.
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - asciicheck
+    - bodyclose
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gosec
+    - misspell
+    - modernize
+    - nilerr
+    - noctx
+    - revive
+    - unconvert
+    - usetesting
+    - wastedassign
+    - whitespace
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+  exclusions:
+    rules:
+      - linters:
+          - gosec
+        text: "G404"
+      # Путь к конфигу приходит из CONFIG_PATH, его задает тот, кто запускает сервис.
+      - path: internal/config/
+        linters:
+          - gosec
+        text: "G703|G706"
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
