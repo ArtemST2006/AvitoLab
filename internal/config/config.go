@@ -46,7 +46,9 @@ func MustLoad() *Config {
 	var cfg Config
 
 	configPath := os.Getenv("CONFIG_PATH")
+	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
 	if _, err := os.Stat(configPath); configPath == "" || os.IsNotExist(err) {
+		// #nosec G706 -- %q escapes control characters in the operator-provided path.
 		log.Printf("config file %q not found, loading config from environment only", configPath)
 
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
@@ -57,7 +59,8 @@ func MustLoad() *Config {
 	}
 
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		log.Fatalf("failed to load config from %q and environment: %v", configPath, err)
+		// #nosec G706 -- %q escapes control characters in both values before logging.
+		log.Fatalf("failed to load config from %q and environment: %q", configPath, err)
 	}
 
 	return &cfg
