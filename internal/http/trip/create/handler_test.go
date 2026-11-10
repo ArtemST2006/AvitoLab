@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -112,7 +111,8 @@ func TestHandleCreateTrip(t *testing.T) {
 			if tt.expectExecute {
 				usecase.EXPECT().Execute(gomock.Any(), wantInput).Return(tt.result, tt.err)
 			}
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			var logOutput bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logOutput, nil))
 			handler := create.New(usecase, logger, time.Second)
 			endpoint := create.ValidateBody(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				handler.Handle(w, r, api.CreateTripParams{IdempotencyKey: &key})
@@ -122,6 +122,17 @@ func TestHandleCreateTrip(t *testing.T) {
 			response := httptest.NewRecorder()
 
 			endpoint.ServeHTTP(response, request)
+
+			if tt.err != nil {
+				var entry map[string]any
+				require.NoError(t, json.Unmarshal(bytes.TrimSpace(logOutput.Bytes()), &entry))
+				wantLevel := "INFO"
+				if tt.wantStatus == http.StatusInternalServerError {
+					wantLevel = "ERROR"
+				}
+				require.Equal(t, wantLevel, entry["level"])
+				require.Equal(t, tt.err.Error(), entry["error"])
+			}
 
 			require.Equal(t, tt.wantStatus, response.Code)
 			if tt.wantCode == "" {

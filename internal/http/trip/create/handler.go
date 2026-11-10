@@ -39,8 +39,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request, params api.Crea
 
 	result, err := h.usecase.Execute(ctx, toInput(body, params.IdempotencyKey))
 	if err != nil {
-		h.log.InfoContext(ctx, "create trip failed", slog.Any("error", err))
-		domainerror.Write(w, r, err)
+		status, body := domainerror.Problem(err)
+		if status >= http.StatusInternalServerError {
+			h.log.ErrorContext(ctx, "create trip failed", slog.Any("error", err))
+		} else {
+			h.log.InfoContext(ctx, "create trip failed", slog.Any("error", err))
+		}
+		domainerror.WriteProblem(w, r, status, body)
 		return
 	}
 	if !result.Replayed {

@@ -1,9 +1,9 @@
 package finish_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -58,12 +58,24 @@ func TestHandleFinishTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			usecase := NewMockusecase(gomock.NewController(t))
 			usecase.EXPECT().Execute(gomock.Any(), id).Return(tt.result, tt.err)
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			var logOutput bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logOutput, nil))
 			handler := finish.New(usecase, logger, time.Second)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/trips/"+id.String()+"/finish", nil)
 			response := httptest.NewRecorder()
 
 			handler.Handle(response, request, id)
+
+			if tt.err != nil {
+				var entry map[string]any
+				require.NoError(t, json.Unmarshal(bytes.TrimSpace(logOutput.Bytes()), &entry))
+				wantLevel := "INFO"
+				if tt.wantStatus == http.StatusInternalServerError {
+					wantLevel = "ERROR"
+				}
+				require.Equal(t, wantLevel, entry["level"])
+				require.Equal(t, tt.err.Error(), entry["error"])
+			}
 
 			require.Equal(t, tt.wantStatus, response.Code)
 			if tt.err == nil {

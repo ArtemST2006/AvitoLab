@@ -11,7 +11,7 @@ export
 GOOSE = $(GO) tool goose -dir $(MIGRATIONS_DIR)
 
 .DEFAULT_GOAL := help
-.PHONY: help install build run format lint test test-integration generate migrate migrate-down migrate-status migrate-create
+.PHONY: help install build run format lint test test-integration generate migrate migrate-down migrate-status migrate-create dashboard
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -24,6 +24,9 @@ build: ## Собрать исполняемый файл
 
 run: ## Запустить приложение: конфиг из CONFIG_PATH, поверх него переменные из .env, параметры через ARGS
 	$(GO) run ./cmd/service $(ARGS)
+
+dashboard: ## Импортировать дашборд Trip Service в Grafana
+	@sh observability/grafana/import-dashboard.sh
 
 format: ## Применить gofumpt и goimports
 	$(GO) tool golangci-lint fmt

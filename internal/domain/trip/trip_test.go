@@ -11,58 +11,54 @@ import (
 	"github.com/ArtemST2006/AvitoLab/internal/domain/trip"
 )
 
-func TestTripFinishActive(t *testing.T) {
-	finishedAt := time.Date(2026, time.November, 9, 12, 0, 0, 0, time.UTC)
-	journey, err := trip.New(
-		uuid.New(), uuid.New(), uuid.New(),
-		trip.Coordinates{Latitude: 66.3, Longitude: 23.4},
-		trip.Coordinates{Latitude: 34.2, Longitude: 34.4},
-		100, finishedAt.Add(-time.Minute),
-	)
+func TestTripFinish(t *testing.T) {
+	startedAt := time.Date(2026, time.November, 9, 10, 0, 0, 0, time.UTC)
+	initialFinish := startedAt.Add(time.Hour)
+	finishAt := startedAt.Add(2 * time.Hour)
 
-	require.NoError(t, err)
+	tests := []struct {
+		name             string
+		at               time.Time
+		alreadyCompleted bool
+		wantErr          error
+	}{
+		{name: "active trip", at: finishAt},
+		{name: "active trip normalizes time to UTC", at: finishAt.In(time.FixedZone("MSK", 3*60*60))},
+		{name: "completed trip stays unchanged", at: finishAt, alreadyCompleted: true, wantErr: trip.ErrTripCompleted},
+	}
 
-	require.NoError(t, journey.Finish(finishedAt))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			journey, err := trip.New(
+				uuid.New(), uuid.New(), uuid.New(),
+				trip.Coordinates{Latitude: 55.75, Longitude: 37.62},
+				trip.Coordinates{Latitude: 59.93, Longitude: 30.32},
+				100, startedAt,
+			)
+			require.NoError(t, err)
+			if tt.alreadyCompleted {
+				require.NoError(t, journey.Finish(initialFinish))
+			}
+			before := journey.Snapshot()
 
-	state := journey.Snapshot()
+			err = journey.Finish(tt.at)
 
-	assert.Equal(t, trip.StatusCompleted, state.Status)
-	require.NotNil(t, state.FinishedAt)
-	assert.Equal(t, finishedAt, *state.FinishedAt)
-}
-
-func TestTripFinishCompleted(t *testing.T) {
-	finishedAt := time.Date(2026, time.November, 9, 12, 0, 0, 0, time.UTC)
-	journey, err := trip.New(
-		uuid.New(), uuid.New(), uuid.New(),
-		trip.Coordinates{Latitude: 55.75, Longitude: 37.62},
-		trip.Coordinates{Latitude: 59.93, Longitude: 30.32},
-		100, finishedAt.Add(-time.Minute),
-	)
-	require.NoError(t, err)
-	require.NoError(t, journey.Finish(finishedAt))
-	before := journey.Snapshot()
-
-	err = journey.Finish(finishedAt.Add(time.Hour))
-
-	require.ErrorIs(t, err, trip.ErrTripCompleted)
-	assert.Equal(t, before, journey.Snapshot(), "a repeated Finish must not change trip state")
-}
-
-func TestTripFinishNormalizesTimeToUTC(t *testing.T) {
-	localTime := time.Date(2026, time.November, 9, 15, 0, 0, 0, time.FixedZone("MSK", 3*60*60))
-	journey, err := trip.New(
-		uuid.New(), uuid.New(), uuid.New(),
-		trip.Coordinates{}, trip.Coordinates{}, 0, localTime.Add(-time.Minute),
-	)
-	require.NoError(t, err)
-
-	require.NoError(t, journey.Finish(localTime))
-
-	state := journey.Snapshot()
-	require.NotNil(t, state.FinishedAt)
-	assert.Equal(t, localTime.UTC(), *state.FinishedAt)
-	assert.Equal(t, time.UTC, state.FinishedAt.Location())
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Equal(t, before, journey.Snapshot(), "failed Finish must not change trip state")
+				return
+			}
+			require.NoError(t, err)
+			want := before
+			want.Status = trip.StatusCompleted
+			finishedAt := tt.at.UTC()
+			want.FinishedAt = &finishedAt
+			state := journey.Snapshot()
+			assert.Equal(t, want, state)
+			require.NotNil(t, state.FinishedAt)
+			assert.Equal(t, time.UTC, state.FinishedAt.Location())
+		})
+	}
 }
 
 func TestTripSnapshotDoesNotExposeMutableState(t *testing.T) {

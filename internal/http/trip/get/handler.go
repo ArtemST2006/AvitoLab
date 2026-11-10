@@ -32,8 +32,13 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request, id api.TripId) 
 	defer cancel()
 	result, err := h.usecase.Execute(ctx, id)
 	if err != nil {
-		h.log.InfoContext(ctx, "get trip failed", slog.Any("error", err))
-		domainerror.Write(w, r, err)
+		status, body := domainerror.Problem(err)
+		if status >= http.StatusInternalServerError {
+			h.log.ErrorContext(ctx, "get trip failed", slog.Any("error", err))
+		} else {
+			h.log.InfoContext(ctx, "get trip failed", slog.Any("error", err))
+		}
+		domainerror.WriteProblem(w, r, status, body)
 		return
 	}
 	render.Status(r, http.StatusOK)
