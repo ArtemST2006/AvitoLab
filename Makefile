@@ -11,7 +11,7 @@ export
 GOOSE = $(GO) tool goose -dir $(MIGRATIONS_DIR)
 
 .DEFAULT_GOAL := help
-.PHONY: help install build run format lint test migrate migrate-down migrate-status migrate-create
+.PHONY: help install build run format lint test test-integration generate migrate migrate-down migrate-status migrate-create dashboard
 
 help: ## Показать список команд
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -20,10 +20,13 @@ install: ## Скачать зависимости приложения и лок
 	$(GO) mod download
 
 build: ## Собрать исполняемый файл
-	$(GO) build -trimpath -o $(BINARY) ./cmd/trip-service
+	$(GO) build -trimpath -o $(BINARY) ./cmd/service
 
 run: ## Запустить приложение: конфиг из CONFIG_PATH, поверх него переменные из .env, параметры через ARGS
-	$(GO) run ./cmd/trip-service $(ARGS)
+	$(GO) run ./cmd/service $(ARGS)
+
+dashboard: ## Импортировать дашборд Trip Service в Grafana
+	@sh observability/grafana/import-dashboard.sh
 
 format: ## Применить gofumpt и goimports
 	$(GO) tool golangci-lint fmt
@@ -34,10 +37,13 @@ lint: ## Проверить go.mod, форматирование и код ли�
 	$(GO) tool golangci-lint fmt --diff
 	$(GO) tool golangci-lint run
 
-test: ## Запустить тесты с race detector (требуется CGO) и сформировать отчеты покрытия
-	$(GO) test -race -coverprofile=coverage.out ./...
-	$(GO) tool cover -func=coverage.out
-	$(GO) tool cover -html=coverage.out -o coverage.html
+test: ## Запустить тесты и показать итоговое покрытие
+	@coverage=$$(mktemp); trap 'rm -f "$$coverage"' EXIT; \
+		$(GO) test -race -count=2 -coverprofile="$$coverage" ./... && \
+		$(GO) tool cover -func="$$coverage" | tail -n 1
+
+test-integration: ## Проверить репозитории с реальным PostgreSQL
+	$(GO) test -race -tags=integration -count=2 ./internal/repository/...
 
 migrate: ## Применить все миграции к DATABASE_URL
 	$(GOOSE) postgres "$(DATABASE_URL)" up
@@ -52,11 +58,12 @@ migrate-create: ## Создать SQL-миграцию, имя передает�
 	@test -n "$(NAME)" || { echo "Укажите имя: make migrate-create NAME=create_trips"; exit 1; }
 	$(GOOSE) create $(NAME) sql
 
-generate:
+generate: ## Сгенерировать OpenAPI-код и моки
 	$(GO) tool oapi-codegen \
 	-generate types,chi-server,spec \
 	-package api \
 	-o internal/generated/api.gen.go \
 	contracts/openapi/trip-service.openapi.yaml
+	$(GO) generate ./internal/...
 
 # TODO: tripgoctl environment start / stop
