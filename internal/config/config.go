@@ -50,7 +50,7 @@ func Load() (*Config, error) {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			return nil, fmt.Errorf("load config from environment: %w", err)
 		}
-		return &cfg, nil
+		return validate(&cfg)
 	}
 
 	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
@@ -58,7 +58,7 @@ func Load() (*Config, error) {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			return nil, fmt.Errorf("load config from environment: %w", err)
 		}
-		return &cfg, nil
+		return validate(&cfg)
 	} else if err != nil {
 		return nil, fmt.Errorf("inspect config %q: %w", configPath, err)
 	}
@@ -66,5 +66,32 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("load config from %q and environment: %w", configPath, err)
 	}
 
-	return &cfg, nil
+	return validate(&cfg)
+}
+
+func validate(cfg *Config) (*Config, error) {
+	for _, value := range []struct {
+		name     string
+		duration time.Duration
+	}{
+		{"SHUTDOWN_TIMEOUT", cfg.ShutdownTimeout},
+		{"HTTP_READ_HEADER_TIMEOUT", cfg.HTTPServer.ReadHeaderTimeout},
+		{"HTTP_READ_TIMEOUT", cfg.HTTPServer.ReadTimeout},
+		{"HTTP_WRITE_TIMEOUT", cfg.HTTPServer.WriteTimeout},
+		{"HTTP_IDLE_TIMEOUT", cfg.HTTPServer.IdleTimeout},
+		{"DATABASE_MAX_CONN_LIFETIME", cfg.Database.MaxConnLifetime},
+		{"DATABASE_CONNECT_TIMEOUT", cfg.Database.ConnectTimeout},
+		{"DATABASE_QUERY_TIMEOUT", cfg.Database.QueryTimeout},
+	} {
+		if value.duration <= 0 {
+			return nil, fmt.Errorf("%s must be positive", value.name)
+		}
+	}
+	if cfg.Database.MaxConns <= 0 {
+		return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive")
+	}
+	if cfg.Database.MinConns < 0 || cfg.Database.MinConns > cfg.Database.MaxConns {
+		return nil, fmt.Errorf("DATABASE_MIN_CONNS must be between 0 and DATABASE_MAX_CONNS")
+	}
+	return cfg, nil
 }

@@ -114,11 +114,6 @@ linters:
       forbid:
         - pattern: ^[A-Za-z0-9]{1,}_.*\.
 
-    revive:
-      rules:
-        - name: var-naming
-          disabled: true
-
     unparam:
       check-exported: true
 
@@ -152,7 +147,8 @@ formatters:
         - default
         - localmodule
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
 
   exclusions:
     generated: lax
