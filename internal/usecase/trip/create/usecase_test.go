@@ -118,9 +118,43 @@ func TestExecuteCreatesTrip(t *testing.T) {
 			require.Equal(t, f.input.Data.UserID, result.Trip.UserID)
 			require.Equal(t, f.input.Data.DriverID, result.Trip.DriverID)
 			require.Equal(t, f.input.Data.Price, result.Trip.Price)
+			require.Equal(t, saved.StartedAt, result.Trip.StartedAt)
+			require.Equal(t, time.UTC, result.Trip.StartedAt.Location())
 			require.Equal(t, trip.StatusActive, result.Trip.Status)
 		})
 	}
+}
+
+func TestExecuteIdempotencyExpiry(t *testing.T) {
+	f := newFixture(t)
+	key := f.withKey()
+	f.expectTx(nil)
+
+	var findExpiry, reserveExpiry time.Time
+	find := f.keys.EXPECT().FindIdempotency(f.ctx, key, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, expiresBefore time.Time) (model.IdempotencyRecord, error) {
+			findExpiry = expiresBefore
+			return model.IdempotencyRecord{}, trip.ErrIdempotencyNotFound
+		})
+	f.keys.EXPECT().ReserveIdempotency(f.ctx, key, bodyHash(t, f.input.Data), gomock.Any()).
+		After(find).DoAndReturn(func(_ context.Context, _ uuid.UUID, _ string, expiresBefore time.Time) (bool, error) {
+		reserveExpiry = expiresBefore
+		return true, nil
+	})
+	f.trips.EXPECT().Insert(f.ctx, gomock.Any()).Return(nil)
+	f.trips.EXPECT().AppendStatus(f.ctx, gomock.Any(), nil, trip.StatusActive, gomock.Any()).Return(nil)
+	f.keys.EXPECT().LinkIdempotency(f.ctx, key, gomock.Any()).Return(nil)
+
+	before := time.Now().UTC().Add(-time.Hour)
+	result, err := f.execute()
+	after := time.Now().UTC().Add(-time.Hour)
+
+	require.NoError(t, err)
+	require.False(t, result.Replayed)
+	require.False(t, findExpiry.IsZero())
+	require.True(t, !findExpiry.Before(before) && !findExpiry.After(after),
+		"expiry %v must be within [%v, %v]", findExpiry, before, after)
+	require.Equal(t, findExpiry, reserveExpiry)
 }
 
 func TestExecuteReplaysTrip(t *testing.T) {
