@@ -20,6 +20,11 @@ func NewPool(ctx context.Context, cfg config.Database) (*pgxpool.Pool, error) {
 	poolCfg.MinConns = cfg.MinConns
 	poolCfg.MaxConnLifetime = cfg.MaxConnLifetime
 	poolCfg.ConnConfig.ConnectTimeout = cfg.ConnectTimeout
+	tracer, err := newQueryTracer()
+	if err != nil {
+		return nil, fmt.Errorf("initialize database telemetry: %w", err)
+	}
+	poolCfg.ConnConfig.Tracer = tracer
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

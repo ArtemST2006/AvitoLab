@@ -20,15 +20,20 @@ const idempotencyTTL = time.Hour
 
 // UseCase coordinates this trip operation.
 type UseCase struct {
-	trips tripRepository
-	keys  idempotencyRepository
-	tx    txManager
-	now   func() time.Time
+	trips   tripRepository
+	keys    idempotencyRepository
+	tx      txManager
+	metrics tripMetrics
+	now     func() time.Time
 }
 
 // New constructs the package component.
-func New(trips tripRepository, keys idempotencyRepository, tx txManager) *UseCase {
-	return &UseCase{trips: trips, keys: keys, tx: tx, now: time.Now}
+func New(trips tripRepository, keys idempotencyRepository, tx txManager, metrics ...tripMetrics) *UseCase {
+	u := &UseCase{trips: trips, keys: keys, tx: tx, now: time.Now}
+	if len(metrics) != 0 {
+		u.metrics = metrics[0]
+	}
+	return u
 }
 
 // Execute runs this trip operation.
@@ -91,6 +96,9 @@ func (u *UseCase) Execute(ctx context.Context, input model.CreateTripInput) (mod
 	})
 	if err != nil {
 		return model.CreateTripResult{}, err
+	}
+	if !result.Replayed && u.metrics != nil {
+		u.metrics.Created(ctx)
 	}
 	return result, nil
 }

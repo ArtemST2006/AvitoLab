@@ -36,6 +36,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request, id api.TripId) 
 		domainerror.Write(w, r, err)
 		return
 	}
+	h.log.InfoContext(ctx, "trip completed", slog.String("trip_id", result.ID.String()))
 	render.Status(r, http.StatusOK)
 	render.JSON(w, r, httptrip.ToAPI(result))
 }

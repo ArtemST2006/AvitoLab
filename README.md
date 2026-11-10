@@ -36,12 +36,12 @@ make run
 | `make install` | скачать зависимости |
 | `make build` | собрать бинарь в `bin/trip-service` |
 | `make run` | запустить сервис (параметры — через `ARGS`) |
-| `make generate` | сгенерировать `internal/generated/api.gen.go` из `contracts/openapi/trip-service.openapi.yaml` |
+| `make generate` | сгенерировать OpenAPI-код и моки через `go generate` |
 | `make migrate` / `migrate-down` / `migrate-status` | применить / откатить последнюю / показать статус миграций |
 | `make migrate-create NAME=...` | создать новую SQL-миграцию |
 | `make format` / `make lint` | форматирование и линтеры |
-| `make test` | запустить тесты и показать итоговое покрытие |
-| `make test-integration` | проверить репозитории с реальным PostgreSQL |
+| `make test` | запустить тесты с `-race -count=2` и показать итоговое покрытие |
+| `make test-integration` | дважды проверить репозитории с реальным PostgreSQL и `-race` |
 
 Для интеграционных тестов нужен PostgreSQL из `tripgoctl environment start` и
 применённые миграции. `Makefile` читает `DATABASE_URL` из `.env`:
@@ -65,7 +65,8 @@ make test-integration
 | `HTTP_ADDR` | да | — | адрес HTTP-сервера, например `:8080` |
 | `LOG_LEVEL` | да | — | `debug` / `info` / `warn` / `error` |
 | `SHUTDOWN_TIMEOUT` | да | — | сколько ждать завершения активных запросов при остановке |
-| `ENV` | нет | `local` | `local` — цветной текстовый лог, `dev` / `prod` — JSON |
+| `ENV` | нет | `local` | имя окружения в логах и телеметрии |
+| `LOG_FORMAT` | нет | `json` | JSON в stdout; `pretty` включает PrettyHandler при `ENV=local` для ручного запуска |
 | `CONFIG_PATH` | нет | — | путь к YAML-конфигу, например `config/local.yaml` |
 | `HTTP_READ_HEADER_TIMEOUT` | нет | `5s` | `http.Server.ReadHeaderTimeout` |
 | `HTTP_READ_TIMEOUT` | нет | `10s` | `http.Server.ReadTimeout` |
@@ -77,8 +78,32 @@ make test-integration
 | `DATABASE_MAX_CONN_LIFETIME` | да | — | время жизни соединения |
 | `DATABASE_CONNECT_TIMEOUT` | да | — | таймаут подключения |
 | `DATABASE_QUERY_TIMEOUT` | да | — | таймаут одного запроса к БД |
+| `OTEL_SERVICE_NAME` | нет | `trip-service` | имя сервиса в телеметрии |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | да | — | базовый адрес OTLP коллектора; его создаёт `tripgoctl` в `.env` |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | нет | `http/protobuf` | транспорт экспорта: `http/protobuf` |
+| `OTEL_TRACES_SAMPLER` | нет | `parentbased_always_on` | стандартная настройка сэмплирования OTel |
+| `OTEL_RESOURCE_ATTRIBUTES` | нет | — | дополнительные атрибуты ресурса OTel |
 
 Пример значений — в [`.env.example`](.env.example).
+
+## Наблюдаемость
+
+HTTP-запросы проходят через `Recover → Tracing → Logging → Metrics → роутер`.
+Итоговый лог пишется один раз после обработки запроса; `http.route` и имя спана
+содержат шаблон маршрута, поэтому UUID поездки не попадает в лейблы.
+Ошибки `5xx` и паники отмечаются на спане; паника возвращает `500 internal_error`.
+По умолчанию во всех окружениях логи пишутся в JSON в stdout. Для ручного
+локального запуска можно задать `LOG_FORMAT=pretty`: существующий PrettyHandler
+остаётся в `internal/lib/logger/handlers`.
+
+`otelpgx` подключён к пулу PostgreSQL. Для SQL-запросов собираются спаны и
+`db.client.operation.duration` с именем операции, таблицей и типом ошибки.
+Счётчики `tripgo.trips.created` и `tripgo.trips.completed` увеличиваются после
+успешной транзакции; повтор по ключу идемпотентности не увеличивает `created`.
+Gauge `tripgo.trips.active` считывает количество активных поездок из PostgreSQL
+во время сбора метрик.
+Трейсы и метрики отправляются по OTLP; отсутствие коллектора не блокирует
+обработку запросов.
 
 ## API
 
@@ -118,6 +143,7 @@ make test-integration
 │   │   ├── router          # адаптер к сгенерированному ServerInterface
 │   │   ├── health
 │   │   └── ready
+│   ├── lib/logger/handlers  # локальный PrettyHandler для slog
 │   ├── repository/trip     # SQL поездок, истории и идемпотентности
 │   ├── infra
 │   │   ├── postgres/transaction
@@ -208,5 +234,8 @@ CREATE UNIQUE INDEX trips_driver_active_uidx ON trips (driver_id) WHERE status =
 
 По `SIGINT` / `SIGTERM` сервер перестаёт принимать новые соединения и ждёт
 активные запросы до `SHUTDOWN_TIMEOUT` (`http.Server.Shutdown`). Если за это
-время не уложились, соединения закрываются принудительно. После этого
-закрывается пул БД.
+время не уложились, соединения закрываются принудительно. Затем останавливаются
+фоновые компоненты и провайдеры OpenTelemetry, отправляя накопленные трейсы и
+метрики; после них закрывается пул БД. Все эти действия используют один общий
+бюджет `SHUTDOWN_TIMEOUT`.
+Недоступность коллектора не препятствует запуску и обработке запросов.

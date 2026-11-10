@@ -243,3 +243,37 @@ func TestExecuteRejectsInvalidTripBeforeTransaction(t *testing.T) {
 	require.Equal(t, "driver_id", validationErr.Field)
 	require.Equal(t, model.CreateTripResult{}, result)
 }
+
+func TestCreatedMetricOnlyAfterCommitAndNotOnReplay(t *testing.T) {
+	for _, mode := range []string{"created", "replayed", "rolled back"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newFixture(t)
+			metrics := NewMocktripMetrics(gomock.NewController(t))
+			if mode == "replayed" {
+				key := f.withKey()
+				entity, err := trip.New(uuid.New(), f.input.Data.UserID, f.input.Data.DriverID,
+					trip.Coordinates(f.input.Data.StartPoint), trip.Coordinates(f.input.Data.EndPoint), f.input.Data.Price, time.Now())
+				require.NoError(t, err)
+				f.keys.EXPECT().FindIdempotency(f.ctx, key, gomock.Any()).Return(
+					model.IdempotencyRecord{BodyHash: bodyHash(t, f.input.Data), TripID: entity.Snapshot().ID}, nil,
+				)
+				f.trips.EXPECT().Get(f.ctx, entity.Snapshot().ID).Return(entity, nil)
+			} else {
+				f.trips.EXPECT().Insert(f.ctx, gomock.Any()).Return(nil)
+				if mode == "created" {
+					f.trips.EXPECT().AppendStatus(f.ctx, gomock.Any(), nil, trip.StatusActive, gomock.Any()).Return(nil)
+					metrics.EXPECT().Created(f.ctx)
+				} else {
+					f.trips.EXPECT().AppendStatus(f.ctx, gomock.Any(), nil, trip.StatusActive, gomock.Any()).Return(errors.New("rollback"))
+				}
+			}
+			f.expectTx(nil)
+			_, err := create.New(f.trips, f.keys, f.tx, metrics).Execute(f.ctx, f.input)
+			if mode == "rolled back" {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

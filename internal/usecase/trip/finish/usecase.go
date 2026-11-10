@@ -13,14 +13,19 @@ import (
 
 // UseCase coordinates this trip operation.
 type UseCase struct {
-	trips tripRepository
-	tx    txManager
-	now   func() time.Time
+	trips   tripRepository
+	tx      txManager
+	metrics tripMetrics
+	now     func() time.Time
 }
 
 // New constructs the package component.
-func New(trips tripRepository, tx txManager) *UseCase {
-	return &UseCase{trips: trips, tx: tx, now: time.Now}
+func New(trips tripRepository, tx txManager, metrics ...tripMetrics) *UseCase {
+	u := &UseCase{trips: trips, tx: tx, now: time.Now}
+	if len(metrics) != 0 {
+		u.metrics = metrics[0]
+	}
+	return u
 }
 
 // Execute runs this trip operation.
@@ -47,6 +52,9 @@ func (u *UseCase) Execute(ctx context.Context, id uuid.UUID) (model.Trip, error)
 	})
 	if err != nil {
 		return model.Trip{}, err
+	}
+	if u.metrics != nil {
+		u.metrics.Completed(ctx)
 	}
 	return result, nil
 }

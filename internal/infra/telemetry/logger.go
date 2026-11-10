@@ -1,14 +1,21 @@
-// Package telemetry initializes service logging.
 package telemetry
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"strings"
+
+	"github.com/ArtemST2006/AvitoLab/internal/lib/logger/handlers"
 )
 
-// NewLogger configures slog for the selected environment.
+// NewLogger writes JSON to stdout in every environment. LOG_FORMAT=pretty
+// explicitly selects the existing PrettyHandler for local terminal runs.
 func NewLogger(level, env string) *slog.Logger {
+	return newLogger(level, env, os.Stdout)
+}
+
+func newLogger(level, env string, output io.Writer) *slog.Logger {
 	var slogLevel slog.Level
 	switch strings.ToLower(level) {
 	case "debug":
@@ -21,8 +28,13 @@ func NewLogger(level, env string) *slog.Logger {
 		slogLevel = slog.LevelInfo
 	}
 	options := &slog.HandlerOptions{Level: slogLevel}
-	if env == "dev" || env == "prod" {
-		return slog.New(slog.NewJSONHandler(os.Stdout, options))
+	var handler slog.Handler = slog.NewJSONHandler(output, options)
+	if env == "local" && strings.EqualFold(os.Getenv("LOG_FORMAT"), "pretty") {
+		handler = (slogpretty.PrettyHandlerOptions{SlogOpts: options}).NewPrettyHandler(output)
 	}
-	return slog.New((PrettyHandlerOptions{SlogOpts: options}).NewPrettyHandler(os.Stdout))
+	handler = traceHandler{Handler: handler}
+	return slog.New(handler).With(
+		slog.String("service", "trip-service"),
+		slog.String("environment", env),
+	)
 }

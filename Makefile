@@ -36,11 +36,11 @@ lint: ## Проверить go.mod, форматирование и код ли�
 
 test: ## Запустить тесты и показать итоговое покрытие
 	@coverage=$$(mktemp); trap 'rm -f "$$coverage"' EXIT; \
-		$(GO) test -coverprofile="$$coverage" ./... && \
+		$(GO) test -race -count=2 -coverprofile="$$coverage" ./... && \
 		$(GO) tool cover -func="$$coverage" | tail -n 1
 
 test-integration: ## Проверить репозитории с реальным PostgreSQL
-	$(GO) test -tags=integration -count=1 ./internal/repository/...
+	$(GO) test -race -tags=integration -count=2 ./internal/repository/...
 
 migrate: ## Применить все миграции к DATABASE_URL
 	$(GOOSE) postgres "$(DATABASE_URL)" up
@@ -55,11 +55,12 @@ migrate-create: ## Создать SQL-миграцию, имя передает�
 	@test -n "$(NAME)" || { echo "Укажите имя: make migrate-create NAME=create_trips"; exit 1; }
 	$(GOOSE) create $(NAME) sql
 
-generate:
+generate: ## Сгенерировать OpenAPI-код и моки
 	$(GO) tool oapi-codegen \
 	-generate types,chi-server,spec \
 	-package api \
 	-o internal/generated/api.gen.go \
 	contracts/openapi/trip-service.openapi.yaml
+	$(GO) generate ./internal/...
 
 # TODO: tripgoctl environment start / stop

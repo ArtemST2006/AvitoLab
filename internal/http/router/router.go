@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	openapimw "github.com/oapi-codegen/nethttp-middleware"
+	"go.opentelemetry.io/otel"
 
 	api "github.com/ArtemST2006/AvitoLab/internal/generated"
 	"github.com/ArtemST2006/AvitoLab/internal/http/domainerror"
@@ -71,7 +72,13 @@ func New(log *slog.Logger, server *Server) (http.Handler, error) {
 		},
 	})
 	chiRouter := chi.NewRouter()
-	chiRouter.Use(middleware.LimitBody)
+	metrics, err := middleware.NewMetrics(otel.Meter("tripgo/http"), func(method, path string) string {
+		return chiRouter.Find(chi.NewRouteContext(), method, path)
+	})
+	if err != nil {
+		return nil, err
+	}
+	chiRouter.Use(middleware.Recover(log), middleware.Tracing, middleware.Logging(log), metrics.Wrap, middleware.LimitBody)
 	api.HandlerWithOptions(server, api.ChiServerOptions{
 		BaseRouter: chiRouter,
 		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {

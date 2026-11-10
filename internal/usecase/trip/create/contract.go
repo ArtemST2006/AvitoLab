@@ -27,3 +27,7 @@ type idempotencyRepository interface {
 type txManager interface {
 	Do(context.Context, func(context.Context) error) error
 }
+
+type tripMetrics interface {
+	Created(context.Context)
+}

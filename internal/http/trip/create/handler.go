@@ -43,7 +43,9 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request, params api.Crea
 		domainerror.Write(w, r, err)
 		return
 	}
-	h.log.InfoContext(ctx, "trip created", slog.String("tripId", result.Trip.ID.String()))
+	if !result.Replayed {
+		h.log.InfoContext(ctx, "trip created", slog.String("trip_id", result.Trip.ID.String()))
+	}
 	w.Header().Set("Location", "/api/v1/trips/"+result.Trip.ID.String())
 	if result.Replayed {
 		render.Status(r, http.StatusOK)

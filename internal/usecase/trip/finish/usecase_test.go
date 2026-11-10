@@ -121,3 +121,27 @@ func TestExecuteErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestCompletedMetricOnlyAfterCommit(t *testing.T) {
+	for _, commit := range []bool{true, false} {
+		t.Run(map[bool]string{true: "commit", false: "rollback"}[commit], func(t *testing.T) {
+			f := newFixture(t)
+			metrics := NewMocktripMetrics(gomock.NewController(t))
+			f.expectTx(nil)
+			f.trips.EXPECT().GetForUpdate(f.ctx, f.id).Return(f.entity, nil)
+			f.trips.EXPECT().Update(f.ctx, f.entity).Return(nil)
+			if commit {
+				f.trips.EXPECT().AppendStatus(f.ctx, f.id, gomock.Any(), trip.StatusCompleted, gomock.Any()).Return(nil)
+				metrics.EXPECT().Completed(f.ctx)
+			} else {
+				f.trips.EXPECT().AppendStatus(f.ctx, f.id, gomock.Any(), trip.StatusCompleted, gomock.Any()).Return(errors.New("rollback"))
+			}
+			_, err := finish.New(f.trips, f.tx, metrics).Execute(f.ctx, f.id)
+			if commit {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}

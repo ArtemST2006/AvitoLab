@@ -2,7 +2,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"time"
 
@@ -40,28 +40,31 @@ type Database struct {
 	QueryTimeout    time.Duration `yaml:"query_timeout" env:"DATABASE_QUERY_TIMEOUT" env-required:"true"`
 }
 
-// MustLoad читает YAML-файл CONFIG_PATH, если он задан, и затем переменные окружения.
+// Load читает YAML-файл CONFIG_PATH, если он задан, и затем переменные окружения.
 // Переменные окружения перекрывают значения из файла.
-func MustLoad() *Config {
+func Load() (*Config, error) {
 	var cfg Config
 
 	configPath := os.Getenv("CONFIG_PATH")
-	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
-	if _, err := os.Stat(configPath); configPath == "" || os.IsNotExist(err) {
-		// #nosec G706 -- %q escapes control characters in the operator-provided path.
-		log.Printf("config file %q not found, loading config from environment only", configPath)
-
+	if configPath == "" {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
-			log.Fatalf("failed to load config from environment: %v", err)
+			return nil, fmt.Errorf("load config from environment: %w", err)
 		}
-
-		return &cfg
+		return &cfg, nil
 	}
 
+	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if err := cleanenv.ReadEnv(&cfg); err != nil {
+			return nil, fmt.Errorf("load config from environment: %w", err)
+		}
+		return &cfg, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("inspect config %q: %w", configPath, err)
+	}
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		// #nosec G706 -- %q escapes control characters in both values before logging.
-		log.Fatalf("failed to load config from %q and environment: %q", configPath, err)
+		return nil, fmt.Errorf("load config from %q and environment: %w", configPath, err)
 	}
 
-	return &cfg
+	return &cfg, nil
 }

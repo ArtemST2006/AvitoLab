@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,13 +17,19 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Print(err)
+		slog.New(slog.NewJSONHandler(os.Stdout, nil)).With(
+			slog.String("service", "trip-service"), slog.String("trace_id", ""), slog.String("span_id", ""),
+		).
+			Error("trip service failed", slog.Any("error", err))
 		os.Exit(1)
 	}
 }
 
 func run() error {
-	cfg := config.MustLoad()
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load configuration: %w", err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -32,7 +37,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize trip service: %w", err)
 	}
-	defer app.Close()
 	app.Log.Info("starting trip service", slog.String("address", app.Server.Addr))
 
 	serverErr := make(chan error, 1)
@@ -43,17 +47,19 @@ func run() error {
 		app.Log.Info("shutdown signal received")
 	case err := <-serverErr:
 		if !errors.Is(err, http.ErrServerClosed) {
-			app.Log.Error("HTTP server stopped", slog.Any("error", err))
 			serveErr = err
 		}
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+	var shutdownErr error
 	if err := app.Server.Shutdown(shutdownCtx); err != nil {
-		app.Log.Error("graceful shutdown failed", slog.Any("error", err))
 		_ = app.Server.Close()
-		return fmt.Errorf("shut down HTTP server: %w", err)
+		shutdownErr = fmt.Errorf("shut down HTTP server: %w", err)
 	}
-	return serveErr
+	if err := app.Close(shutdownCtx); err != nil {
+		app.Log.Error("resource shutdown failed", slog.Any("error", err))
+	}
+	return errors.Join(serveErr, shutdownErr)
 }
