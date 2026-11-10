@@ -59,7 +59,7 @@ func TestObservabilityMiddleware(t *testing.T) {
 		{http.MethodPost, panicRoute, panicRoute, http.StatusInternalServerError},
 	} {
 		response := httptest.NewRecorder()
-		r.ServeHTTP(response, httptest.NewRequest(tc.method, tc.path, nil))
+		r.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil))
 		require.Equal(t, tc.status, response.Code)
 		if tc.status == http.StatusInternalServerError {
 			require.Contains(t, response.Body.String(), `"code":"internal_error"`)
@@ -68,7 +68,7 @@ func TestObservabilityMiddleware(t *testing.T) {
 	}
 
 	var requestLogs []map[string]any
-	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
 		var entry map[string]any
 		require.NoError(t, json.Unmarshal([]byte(line), &entry))
 		if entry["msg"] == "request handled" {
@@ -141,7 +141,7 @@ func TestActiveRequestsWhileHandlerRuns(t *testing.T) {
 	finished := make(chan struct{})
 	go func() {
 		defer close(finished)
-		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/trips/"+uuid.NewString(), nil))
+		r.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/trips/"+uuid.NewString(), nil))
 	}()
 	<-started
 	var data metricdata.ResourceMetrics

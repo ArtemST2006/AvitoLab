@@ -64,14 +64,13 @@ func Tracing(next http.Handler) http.Handler {
 			route := routePattern(r)
 			r.Pattern = route
 			span.SetName(r.Method + " " + route)
-			status := wrapped.Status()
 			if value := recover(); value != nil {
-				status = http.StatusInternalServerError
 				span.RecordError(errors.New("handler panic"))
 				span.SetStatus(codes.Error, "panic")
 				span.SetAttributes(attribute.String("error.type", "panic"))
 				panic(value)
 			}
+			status := wrapped.Status()
 			if status >= http.StatusInternalServerError {
 				span.SetStatus(codes.Error, http.StatusText(status))
 				span.SetAttributes(attribute.String("error.type", http.StatusText(status)))

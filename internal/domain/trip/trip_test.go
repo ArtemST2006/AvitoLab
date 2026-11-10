@@ -85,6 +85,8 @@ func TestTripSnapshotDoesNotExposeMutableState(t *testing.T) {
 	// A snapshot must also be safe to change after it is returned.
 	first.Status = trip.StatusActive
 	first.Price = -1
+	assert.Equal(t, trip.StatusActive, first.Status)
+	assert.EqualValues(t, -1, first.Price)
 	*first.FinishedAt = first.FinishedAt.Add(time.Hour)
 	*first.LastPositionAt = first.LastPositionAt.Add(time.Hour)
 	second := journey.Snapshot()

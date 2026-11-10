@@ -117,7 +117,7 @@ func TestHandleCreateTrip(t *testing.T) {
 			endpoint := create.ValidateBody(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				handler.Handle(w, r, api.CreateTripParams{IdempotencyKey: &key})
 			}))
-			request := httptest.NewRequest(http.MethodPost, "/api/v1/trips", bytes.NewReader(tt.body))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/trips", bytes.NewReader(tt.body))
 			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
 

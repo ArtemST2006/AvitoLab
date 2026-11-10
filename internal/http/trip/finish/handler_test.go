@@ -61,7 +61,7 @@ func TestHandleFinishTrip(t *testing.T) {
 			var logOutput bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logOutput, nil))
 			handler := finish.New(usecase, logger, time.Second)
-			request := httptest.NewRequest(http.MethodPost, "/api/v1/trips/"+id.String()+"/finish", nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/trips/"+id.String()+"/finish", nil)
 			response := httptest.NewRecorder()
 
 			handler.Handle(response, request, id)

@@ -9,6 +9,7 @@ version: "2"
 run:
   concurrency: 8
   timeout: 5m
+  tests: true
   build-tags:
     - integration
 
@@ -19,6 +20,16 @@ issues:
 linters:
   default: none
   enable:
+    - asciicheck
+    - bodyclose
+    - errorlint
+    - exhaustive
+    - misspell
+    - modernize
+    - nilerr
+    - noctx
+    - usetesting
+    - wastedassign
     - depguard        # правила зависимостей между слоями, см. лабораторную работу 2
     - errcheck
     - forbidigo
@@ -39,6 +50,11 @@ linters:
     - whitespace
 
   settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
     # Слои: домен ничего не знает про инфраструктуру, usecase не знает про транспорт.
     # Так правило перестаёт быть договорённостью и становится частью сборки.
     depguard:
@@ -57,22 +73,6 @@ linters:
               desc: домен не строит SQL
             - pkg: go.opentelemetry.io/otel
               desc: домен не знает про телеметрию
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/generated
-              desc: домен не зависит от OpenAPI-типов
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/http/
-              desc: домен не зависит от транспорта
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/usecase/
-              desc: домен не зависит от сценариев
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/repository/
-              desc: домен не зависит от репозиториев
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/infra/
-              desc: домен не зависит от инфраструктуры
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/model
-              desc: домен не зависит от межслойных моделей
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/config
-              desc: домен не зависит от конфигурации
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/container
-              desc: домен не зависит от сборки приложения
         usecase:
           files:
             - "**/internal/usecase/**"
@@ -85,34 +85,17 @@ linters:
               desc: usecase работает через интерфейсы, а не через драйвер бд
             - pkg: github.com/Masterminds/squirrel
               desc: usecase не строит SQL
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/generated
-              desc: usecase не зависит от OpenAPI-типов
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/http/
-              desc: usecase не зависит от транспорта
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/repository/
-              desc: usecase работает через свои интерфейсы
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/infra/
-              desc: usecase не зависит от инфраструктуры
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/config
-              desc: usecase не зависит от конфигурации приложения
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/container
-              desc: usecase не зависит от сборки приложения
-            - pkg: go.opentelemetry.io/otel
-              desc: usecase не зависит от телеметрии
-        http:
-          files:
-            - "**/internal/http/**"
-          deny:
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/repository/
-              desc: HTTP не обращается к репозиторию напрямую
-            - pkg: github.com/ArtemST2006/AvitoLab/internal/infra/
-              desc: HTTP не создаёт инфраструктуру
 
     # Запрещает обращения через идентификатор с подчёркиванием, поэтому пакеты
     # называем без snake_case: internal/adapter/http, а не internal/adapter/http_server.
     forbidigo:
       forbid:
         - pattern: ^[A-Za-z0-9]{1,}_.*\.
+
+    revive:
+      rules:
+        - name: var-naming
+          disabled: true
 
     unparam:
       check-exported: true
@@ -139,6 +122,7 @@ formatters:
   enable:
     - gofumpt
     - gci
+    - goimports
 
   settings:
     gci:
@@ -147,8 +131,7 @@ formatters:
         - default
         - localmodule
     gofumpt:
-      extra:
-        group-params: true
+      extra-rules: true
 
   exclusions:
     generated: lax

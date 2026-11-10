@@ -55,8 +55,8 @@ func Load() (*Config, error) {
 
 	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if err := cleanenv.ReadEnv(&cfg); err != nil {
-			return nil, fmt.Errorf("load config from environment: %w", err)
+		if readErr := cleanenv.ReadEnv(&cfg); readErr != nil {
+			return nil, fmt.Errorf("load config from environment: %w", readErr)
 		}
 		return validate(&cfg)
 	} else if err != nil {

@@ -67,7 +67,7 @@ func TestHandleGetTrip(t *testing.T) {
 			var logOutput bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logOutput, nil))
 			handler := get.New(usecase, logger, time.Second)
-			request := httptest.NewRequest(http.MethodGet, "/api/v1/trips/"+id.String(), nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/trips/"+id.String(), nil)
 			response := httptest.NewRecorder()
 
 			handler.Handle(response, request, id)

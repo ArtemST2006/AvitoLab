@@ -33,7 +33,7 @@ func TestHandleReady(t *testing.T) {
 			db.EXPECT().Ping(gomock.Any()).Return(tt.pingErr)
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			handler := ready.New(db, logger, time.Second)
-			request := httptest.NewRequest(http.MethodGet, "/ready", nil)
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ready", nil)
 			response := httptest.NewRecorder()
 
 			handler.Handle(response, request)

@@ -45,8 +45,8 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	cleanupTelemetry := func() {
 		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.ShutdownTimeout)
 		defer cancel()
-		if err := shutdown(shutdownCtx); err != nil {
-			log.Error("OpenTelemetry shutdown failed", slog.Any("error", err))
+		if shutdownErr := shutdown(shutdownCtx); shutdownErr != nil {
+			log.Error("OpenTelemetry shutdown failed", slog.Any("error", shutdownErr))
 		}
 	}
 	pool, err := postgres.NewPool(ctx, cfg.Database)

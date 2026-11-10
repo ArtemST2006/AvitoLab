@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -29,8 +30,8 @@ func Setup(ctx context.Context, defaultName, level, environment string) (_ *slog
 	var closers []func(context.Context) error
 	shutdown = func(ctx context.Context) error {
 		var result error
-		for i := len(closers) - 1; i >= 0; i-- {
-			result = errors.Join(result, closers[i](ctx))
+		for _, closeFn := range slices.Backward(closers) {
+			result = errors.Join(result, closeFn(ctx))
 		}
 		return result
 	}

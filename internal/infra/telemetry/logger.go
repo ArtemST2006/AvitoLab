@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ArtemST2006/AvitoLab/internal/lib/logger/handlers"
+	slogpretty "github.com/ArtemST2006/AvitoLab/internal/lib/logger/handlers"
 )
 
 // NewLogger writes JSON to stdout in every environment. LOG_FORMAT=pretty
