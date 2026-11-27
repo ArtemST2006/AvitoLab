@@ -25,7 +25,11 @@ import (
 	"github.com/ArtemST2006/AvitoLab/internal/http/middleware"
 )
 
-const panicRoute = "/panic"
+const (
+	tripRoute      = "/api/v1/trips/{tripId}"
+	unmatchedRoute = "unmatched"
+	panicRoute     = "/panic"
+)
 
 func TestObservabilityMiddleware(t *testing.T) {
 	previous := otel.GetTracerProvider()
@@ -46,7 +50,7 @@ func TestObservabilityMiddleware(t *testing.T) {
 	})
 	require.NoError(t, err)
 	r.Use(middleware.Recover(log), middleware.Tracing, middleware.Logging(log), metrics.Wrap)
-	r.Get("/api/v1/trips/{tripId}", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	r.Get(tripRoute, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Post(panicRoute, func(_ http.ResponseWriter, _ *http.Request) { panic("secret panic") })
 
 	id := uuid.NewString()
@@ -54,8 +58,8 @@ func TestObservabilityMiddleware(t *testing.T) {
 		method, path, route string
 		status              int
 	}{
-		{http.MethodGet, "/api/v1/trips/" + id, "/api/v1/trips/{tripId}", http.StatusOK},
-		{http.MethodGet, "/missing/" + id, "unmatched", http.StatusNotFound},
+		{http.MethodGet, "/api/v1/trips/" + id, tripRoute, http.StatusOK},
+		{http.MethodGet, "/missing/" + id, unmatchedRoute, http.StatusNotFound},
 		{http.MethodPost, panicRoute, panicRoute, http.StatusInternalServerError},
 	} {
 		response := httptest.NewRecorder()
@@ -76,8 +80,8 @@ func TestObservabilityMiddleware(t *testing.T) {
 		}
 	}
 	require.Len(t, requestLogs, 3)
-	require.Equal(t, "/api/v1/trips/{tripId}", requestLogs[0]["route"])
-	require.Equal(t, "unmatched", requestLogs[1]["route"])
+	require.Equal(t, tripRoute, requestLogs[0]["route"])
+	require.Equal(t, unmatchedRoute, requestLogs[1]["route"])
 	require.Equal(t, "INFO", requestLogs[1]["level"])
 	require.Equal(t, "ERROR", requestLogs[2]["level"])
 	require.Equal(t, float64(500), requestLogs[2]["status"])
@@ -85,8 +89,11 @@ func TestObservabilityMiddleware(t *testing.T) {
 
 	spans := recorder.Ended()
 	require.Len(t, spans, 3)
-	require.Equal(t, "GET /api/v1/trips/{tripId}", spans[0].Name())
+	require.Equal(t, http.MethodGet+" "+tripRoute, spans[0].Name())
 	require.Equal(t, "POST "+panicRoute, spans[2].Name())
+	for i, route := range []string{tripRoute, unmatchedRoute, panicRoute} {
+		require.Contains(t, spans[i].Attributes(), attribute.String("http.route", route))
+	}
 	require.Equal(t, codes.Error, spans[2].Status().Code)
 	require.True(t, panicSpan.IsValid())
 	require.Equal(t, spans[2].SpanContext().TraceID(), panicSpan.TraceID())
@@ -95,7 +102,7 @@ func TestObservabilityMiddleware(t *testing.T) {
 	require.NoError(t, reader.Collect(context.Background(), &data))
 	durations := metricByName(t, data, "http.server.request.duration").Data.(metricdata.Histogram[float64])
 	require.Len(t, durations.DataPoints, 3)
-	want := map[int]string{200: "/api/v1/trips/{tripId}", 404: "unmatched", 500: panicRoute}
+	want := map[int]string{200: tripRoute, 404: unmatchedRoute, 500: panicRoute}
 	for _, point := range durations.DataPoints {
 		require.EqualValues(t, 1, point.Count)
 		status := int(attr(t, point.Attributes, "http.response.status_code").AsInt64())
@@ -133,7 +140,7 @@ func TestActiveRequestsWhileHandlerRuns(t *testing.T) {
 	r.Use(metrics.Wrap)
 	started := make(chan struct{})
 	release := make(chan struct{})
-	r.Get("/api/v1/trips/{tripId}", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get(tripRoute, func(w http.ResponseWriter, _ *http.Request) {
 		close(started)
 		<-release
 		w.WriteHeader(http.StatusOK)
@@ -149,7 +156,7 @@ func TestActiveRequestsWhileHandlerRuns(t *testing.T) {
 	active := metricByName(t, data, "http.server.active_requests").Data.(metricdata.Sum[int64])
 	require.Len(t, active.DataPoints, 1)
 	require.EqualValues(t, 1, active.DataPoints[0].Value)
-	require.Equal(t, attribute.StringValue("/api/v1/trips/{tripId}"), attr(t, active.DataPoints[0].Attributes, "http.route"))
+	require.Equal(t, attribute.StringValue(tripRoute), attr(t, active.DataPoints[0].Attributes, "http.route"))
 	close(release)
 	<-finished
 }

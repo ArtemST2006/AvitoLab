@@ -91,9 +91,20 @@ func Setup(ctx context.Context, defaultName, level, environment string) (_ *slog
 	if err != nil {
 		return nil, shutdown, fmt.Errorf("create OTLP metric exporter: %w", err)
 	}
+	durationBoundaries := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5}
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(res),
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
+		sdkmetric.WithView(
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: "http.server.request.duration", Kind: sdkmetric.InstrumentKindHistogram, Unit: "s"},
+				sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: durationBoundaries}},
+			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: "db.client.operation.duration", Kind: sdkmetric.InstrumentKindHistogram, Unit: "s"},
+				sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: durationBoundaries}},
+			),
+		),
 	)
 	closers = append(closers, mp.Shutdown)
 

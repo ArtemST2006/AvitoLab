@@ -64,6 +64,7 @@ func Tracing(next http.Handler) http.Handler {
 			route := routePattern(r)
 			r.Pattern = route
 			span.SetName(r.Method + " " + route)
+			span.SetAttributes(attribute.String("http.route", route))
 			if value := recover(); value != nil {
 				span.RecordError(errors.New("handler panic"))
 				span.SetStatus(codes.Error, "panic")
