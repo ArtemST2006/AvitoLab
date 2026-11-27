@@ -87,10 +87,13 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 
 // WithAttrs возвращает обработчик, добавляющий attrs к каждой записи.
 func (h *PrettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	allAttrs := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
+	allAttrs = append(allAttrs, h.attrs...)
+	allAttrs = append(allAttrs, attrs...)
 	return &PrettyHandler{
-		Handler: h.Handler,
+		Handler: h.Handler.WithAttrs(attrs),
 		l:       h.l,
-		attrs:   attrs,
+		attrs:   allAttrs,
 	}
 }
 
@@ -100,5 +103,6 @@ func (h *PrettyHandler) WithGroup(name string) slog.Handler {
 	return &PrettyHandler{
 		Handler: h.Handler.WithGroup(name),
 		l:       h.l,
+		attrs:   append([]slog.Attr(nil), h.attrs...),
 	}
 }
