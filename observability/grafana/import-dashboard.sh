@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Usage: GRAFANA_URL=http://localhost:22300 OVERWRITE=false sh observability/grafana/import-dashboard.sh
+# Usage: GRAFANA_URL=http://localhost:23300 OVERWRITE=false sh observability/grafana/import-dashboard.sh
 set -eu
 
-url="${GRAFANA_URL:-http://localhost:22300}"
+url="${GRAFANA_URL:-http://localhost:23300}"
 overwrite="${OVERWRITE:-false}"
 case "$overwrite" in
   true|false) ;;

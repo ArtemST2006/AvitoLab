@@ -6,7 +6,8 @@
   "tags": [
     "tripgo",
     "observability",
-    "lab02"
+    "lab02",
+    "lab03"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -436,6 +437,231 @@
           "legendFormat": "5xx"
         }
       ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Проверки поездок · по результату",
+      "description": "Скорость постановки в очередь: queued, duplicate и dropped; окно 5 минут.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "sum by (result) (rate(tripgo_stale_checks_total{exported_job=\"tripgo/trip-service\"}[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Запросы координат · по результату",
+      "description": "Скорость успешных и ошибочных запросов, а также задач, сброшенных до отправки; окно 5 минут.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "sum by (result) (rate(tripgo_position_requests_total{exported_job=\"tripgo/trip-service\"}[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Размер очереди координат",
+      "description": "Число ожидающих задач; не включает задачи, уже выполняемые воркерами.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "sum(tripgo_position_requests_queue_size{exported_job=\"tripgo/trip-service\"})",
+          "legendFormat": "В очереди"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Занятые воркеры координат",
+      "description": "Число воркеров, выполняющих запрос в Push Service.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 39,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "sum(tripgo_position_requests_workers_active{exported_job=\"tripgo/trip-service\"})",
+          "legendFormat": "Заняты"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Push Service · время запроса p95",
+      "description": "Приближённый p95 длительности одной попытки, в секундах; окно 5 минут.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 39,
+        "w": 8,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(tripgo_position_requests_duration_seconds_bucket{exported_job=\"tripgo/trip-service\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Сохранено координат",
+      "description": "Число успешно сохранённых координат с последнего перезапуска сервиса.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 24,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "range": true,
+          "expr": "sum(tripgo_positions_saved_total{exported_job=\"tripgo/trip-service\"})",
+          "legendFormat": ""
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area"
+      }
     }
   ]
 }

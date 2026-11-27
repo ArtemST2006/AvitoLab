@@ -104,6 +104,10 @@ func Setup(ctx context.Context, defaultName, level, environment string) (_ *slog
 				sdkmetric.Instrument{Name: "db.client.operation.duration", Kind: sdkmetric.InstrumentKindHistogram, Unit: "s"},
 				sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: durationBoundaries}},
 			),
+			sdkmetric.NewView(
+				sdkmetric.Instrument{Name: "tripgo.position_requests.duration", Kind: sdkmetric.InstrumentKindHistogram, Unit: "s"},
+				sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{Boundaries: durationBoundaries}},
+			),
 		),
 	)
 	closers = append(closers, mp.Shutdown)

@@ -73,7 +73,7 @@ func TestSetupExportsPendingTelemetry(t *testing.T) {
 	counter, err := otel.Meter("test").Int64Counter("test.shutdown.counter")
 	require.NoError(t, err)
 	counter.Add(ctx, 1)
-	for _, name := range []string{"http.server.request.duration", "db.client.operation.duration"} {
+	for _, name := range []string{"http.server.request.duration", "db.client.operation.duration", "tripgo.position_requests.duration"} {
 		histogram, histogramErr := otel.Meter("test").Float64Histogram(name, metric.WithUnit("s"))
 		require.NoError(t, histogramErr)
 		histogram.Record(ctx, 0.012)
@@ -109,7 +109,7 @@ func TestSetupExportsPendingTelemetry(t *testing.T) {
 	require.Contains(t, exported, "test.shutdown.counter")
 	require.EqualValues(t, 1, exported["test.shutdown.counter"].GetSum().DataPoints[0].GetAsInt())
 	wantBounds := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5}
-	for _, name := range []string{"http.server.request.duration", "db.client.operation.duration"} {
+	for _, name := range []string{"http.server.request.duration", "db.client.operation.duration", "tripgo.position_requests.duration"} {
 		require.Contains(t, exported, name)
 		require.Equal(t, "s", exported[name].Unit)
 		points := exported[name].GetHistogram().DataPoints
