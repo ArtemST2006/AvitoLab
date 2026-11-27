@@ -26,7 +26,7 @@ func (r *Repository) GetForUpdate(ctx context.Context, id uuid.UUID) (*domain.Tr
 func (r *Repository) fetch(ctx context.Context, id uuid.UUID, forUpdate bool) (*domain.Trip, error) {
 	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar).
 		Select("id", "user_id", "driver_id", "start_latitude", "start_longitude",
-			"end_latitude", "end_longitude", "price", "status", "started_at", "finished_at").
+			"end_latitude", "end_longitude", "price", "status", "started_at", "finished_at", "last_position_at").
 		From("trips").Where(squirrel.Eq{"id": id})
 	if forUpdate {
 		builder = builder.Suffix("FOR UPDATE")
@@ -40,7 +40,7 @@ func (r *Repository) fetch(ctx context.Context, id uuid.UUID, forUpdate bool) (*
 		&state.ID, &state.UserID, &state.DriverID,
 		&state.StartPoint.Latitude, &state.StartPoint.Longitude,
 		&state.EndPoint.Latitude, &state.EndPoint.Longitude,
-		&state.Price, &state.Status, &state.StartedAt, &state.FinishedAt,
+		&state.Price, &state.Status, &state.StartedAt, &state.FinishedAt, &state.LastPositionAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, domain.ErrTripNotFound

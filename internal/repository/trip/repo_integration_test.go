@@ -234,3 +234,42 @@ func TestRepositoryRollsBackTripAndHistory(t *testing.T) {
 	require.Zero(t, tripCount)
 	require.Zero(t, historyCount)
 }
+
+func TestRepositoryListStale(t *testing.T) {
+	db := openTestDB(t)
+	staleAfter := time.Minute
+	staleDriverID := uuid.New()
+
+	stale := db.newTrip(t, staleDriverID)
+	fresh := db.newTrip(t, uuid.New())
+	completed := db.newTrip(t, uuid.New())
+	recent := db.newTrip(t, uuid.New())
+	for _, entity := range []*domain.Trip{stale, fresh, completed, recent} {
+		require.NoError(t, db.repo.Insert(db.ctx, entity))
+	}
+
+	for _, entity := range []*domain.Trip{stale, fresh, completed} {
+		_, err := db.pool.Exec(db.ctx,
+			"UPDATE trips SET started_at = now() - interval '2 minutes' WHERE id = $1", entity.Snapshot().ID)
+		require.NoError(t, err)
+	}
+	_, err := db.pool.Exec(db.ctx,
+		"UPDATE trips SET last_position_at = now() WHERE id = $1", fresh.Snapshot().ID)
+	require.NoError(t, err)
+	require.NoError(t, completed.Finish(time.Now()))
+	require.NoError(t, db.repo.Update(db.ctx, completed))
+
+	got, err := db.repo.ListStale(db.ctx, staleAfter)
+	require.NoError(t, err)
+	gotByID := make(map[uuid.UUID]uuid.UUID, len(got))
+	for _, item := range got {
+		gotByID[item.TripID] = item.DriverID
+	}
+
+	staleID := stale.Snapshot().ID
+	require.Contains(t, gotByID, staleID)
+	require.Equal(t, staleDriverID, gotByID[staleID])
+	require.NotContains(t, gotByID, fresh.Snapshot().ID)
+	require.NotContains(t, gotByID, completed.Snapshot().ID)
+	require.NotContains(t, gotByID, recent.Snapshot().ID)
+}

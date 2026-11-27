@@ -18,6 +18,14 @@ type Config struct {
 
 	HTTPServer HTTPServer `yaml:"http-server"`
 	Database   Database   `yaml:"database"`
+
+	PositionStaleAfter    time.Duration `env:"POSITION_STALE_AFTER" env-default:"60s"`
+	PositionCheckInterval time.Duration `env:"POSITION_CHECK_INTERVAL" env-default:"30s"`
+
+	PositionWorkers    int           `env:"POSITION_WORKERS" env-default:"4"`
+	PositionQueueSize  int           `env:"POSITION_QUEUE_SIZE" env-default:"100"`
+	PushHTTPURL        string        `env:"PUSH_HTTP_URL" env-required:"true"`
+	PushRequestTimeout time.Duration `env:"PUSH_REQUEST_TIMEOUT" env-default:"1s"`
 }
 
 // HTTPServer — настройки HTTP-сервера.
@@ -82,10 +90,19 @@ func validate(cfg *Config) (*Config, error) {
 		{"DATABASE_MAX_CONN_LIFETIME", cfg.Database.MaxConnLifetime},
 		{"DATABASE_CONNECT_TIMEOUT", cfg.Database.ConnectTimeout},
 		{"DATABASE_QUERY_TIMEOUT", cfg.Database.QueryTimeout},
+		{"POSITION_STALE_AFTER", cfg.PositionStaleAfter},
+		{"POSITION_CHECK_INTERVAL", cfg.PositionCheckInterval},
+		{"PUSH_REQUEST_TIMEOUT", cfg.PushRequestTimeout},
 	} {
 		if value.duration <= 0 {
 			return nil, fmt.Errorf("%s must be positive", value.name)
 		}
+	}
+	if cfg.PositionWorkers <= 0 {
+		return nil, fmt.Errorf("POSITION_WORKERS must be positive")
+	}
+	if cfg.PositionQueueSize <= 0 {
+		return nil, fmt.Errorf("POSITION_QUEUE_SIZE must be positive")
 	}
 	if cfg.Database.MaxConns <= 0 {
 		return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive")

@@ -59,6 +59,11 @@ type IdempotencyRecord struct {
 	CreatedAt time.Time
 }
 
+type StaleTrip struct {
+	TripID   uuid.UUID
+	DriverID uuid.UUID
+}
+
 // FromDomain copies a domain trip into an application result.
 func FromDomain(entity *trip.Trip) Trip {
 	state := entity.Snapshot()

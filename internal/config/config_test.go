@@ -61,6 +61,7 @@ func setValidEnvironment(t *testing.T) {
 		"DATABASE_MAX_CONN_LIFETIME": "30m",
 		"DATABASE_CONNECT_TIMEOUT":   "5s",
 		"DATABASE_QUERY_TIMEOUT":     "3s",
+		"PUSH_HTTP_URL":              "http://localhost:8090",
 	} {
 		t.Setenv(name, value)
 	}

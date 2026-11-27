@@ -14,6 +14,8 @@ import (
 	"github.com/ArtemST2006/AvitoLab/internal/http/domainerror"
 	"github.com/ArtemST2006/AvitoLab/internal/http/health"
 	"github.com/ArtemST2006/AvitoLab/internal/http/middleware"
+	positionlist "github.com/ArtemST2006/AvitoLab/internal/http/position/list"
+	"github.com/ArtemST2006/AvitoLab/internal/http/position/save"
 	"github.com/ArtemST2006/AvitoLab/internal/http/ready"
 	"github.com/ArtemST2006/AvitoLab/internal/http/trip/create"
 	"github.com/ArtemST2006/AvitoLab/internal/http/trip/finish"
@@ -23,11 +25,13 @@ import (
 // Server adapts endpoint handlers to the generated API interface.
 type Server struct {
 	api.Unimplemented
-	Create      *create.Handler
-	Get         *get.Handler
-	Finish      *finish.Handler
-	HealthCheck *health.Handler
-	ReadyCheck  *ready.Handler
+	Create        *create.Handler
+	Get           *get.Handler
+	Finish        *finish.Handler
+	HealthCheck   *health.Handler
+	ReadyCheck    *ready.Handler
+	SavePosition  *save.Handler
+	ListPositions *positionlist.Handler
 }
 
 var _ api.ServerInterface = (*Server)(nil)
@@ -45,6 +49,15 @@ func (s *Server) GetTrip(w http.ResponseWriter, r *http.Request, id api.TripId) 
 // FinishTrip delegates to the finish-trip handler.
 func (s *Server) FinishTrip(w http.ResponseWriter, r *http.Request, id api.TripId) {
 	s.Finish.Handle(w, r, id)
+}
+
+func (s *Server) CreateTripPosition(w http.ResponseWriter, r *http.Request, id api.TripId) {
+	s.SavePosition.Handle(w, r, id)
+}
+
+// ListTripPositions delegates to the route handler.
+func (s *Server) ListTripPositions(w http.ResponseWriter, r *http.Request, id api.TripId) {
+	s.ListPositions.Handle(w, r, id)
 }
 
 // Health delegates to the liveness handler.
@@ -85,7 +98,7 @@ func New(log *slog.Logger, server *Server) (http.Handler, error) {
 			status, body := domainerror.InvalidRequest(err.Error())
 			domainerror.WriteProblem(w, r, status, body)
 		},
-		Middlewares: []api.MiddlewareFunc{create.ValidateBody(log), openAPI},
+		Middlewares: []api.MiddlewareFunc{create.ValidateBody(log), save.ValidateBody(log), openAPI},
 	})
 	return chiRouter, nil
 }

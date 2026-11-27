@@ -16,6 +16,7 @@ type key struct{}
 // DBTX is the common query surface of pgxpool.Pool and pgx.Tx.
 type DBTX interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 

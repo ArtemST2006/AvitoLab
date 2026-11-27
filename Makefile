@@ -42,8 +42,8 @@ test: ## Запустить тесты и показать итоговое по
 		$(GO) test -race -count=2 -coverprofile="$$coverage" ./... && \
 		$(GO) tool cover -func="$$coverage" | tail -n 1
 
-test-integration: ## Проверить репозитории с реальным PostgreSQL
-	$(GO) test -race -tags=integration -count=2 ./internal/repository/...
+test-integration: ## Проверить репозитории и сохранение координат с реальным PostgreSQL
+	$(GO) test -race -tags=integration -count=2 ./internal/repository/... ./internal/integration/...
 
 migrate: ## Применить все миграции к DATABASE_URL
 	$(GOOSE) postgres "$(DATABASE_URL)" up

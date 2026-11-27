@@ -58,8 +58,9 @@ func run() error {
 		_ = app.Server.Close()
 		shutdownErr = fmt.Errorf("shut down HTTP server: %w", err)
 	}
-	if err := app.Close(shutdownCtx); err != nil {
-		app.Log.Error("resource shutdown failed", slog.Any("error", err))
+	closeErr := app.Close(shutdownCtx)
+	if closeErr != nil {
+		app.Log.Error("resource shutdown failed", slog.Any("error", closeErr))
 	}
-	return errors.Join(serveErr, shutdownErr)
+	return errors.Join(serveErr, shutdownErr, closeErr)
 }
