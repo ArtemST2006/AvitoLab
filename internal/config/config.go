@@ -2,7 +2,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"time"
 
@@ -40,25 +40,58 @@ type Database struct {
 	QueryTimeout    time.Duration `yaml:"query_timeout" env:"DATABASE_QUERY_TIMEOUT" env-required:"true"`
 }
 
-// MustLoad читает YAML-файл CONFIG_PATH, если он задан, и затем переменные окружения.
+// Load читает YAML-файл CONFIG_PATH, если он задан, и затем переменные окружения.
 // Переменные окружения перекрывают значения из файла.
-func MustLoad() *Config {
+func Load() (*Config, error) {
 	var cfg Config
 
 	configPath := os.Getenv("CONFIG_PATH")
-	if _, err := os.Stat(configPath); configPath == "" || os.IsNotExist(err) {
-		log.Printf("config file %q not found, loading config from environment only", configPath)
-
+	if configPath == "" {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
-			log.Fatalf("failed to load config from environment: %v", err)
+			return nil, fmt.Errorf("load config from environment: %w", err)
 		}
-
-		return &cfg
+		return validate(&cfg)
 	}
 
+	// #nosec G703 -- CONFIG_PATH is an operator-provided path to the service configuration.
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if readErr := cleanenv.ReadEnv(&cfg); readErr != nil {
+			return nil, fmt.Errorf("load config from environment: %w", readErr)
+		}
+		return validate(&cfg)
+	} else if err != nil {
+		return nil, fmt.Errorf("inspect config %q: %w", configPath, err)
+	}
 	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		log.Fatalf("failed to load config from %q and environment: %v", configPath, err)
+		return nil, fmt.Errorf("load config from %q and environment: %w", configPath, err)
 	}
 
-	return &cfg
+	return validate(&cfg)
+}
+
+func validate(cfg *Config) (*Config, error) {
+	for _, value := range []struct {
+		name     string
+		duration time.Duration
+	}{
+		{"SHUTDOWN_TIMEOUT", cfg.ShutdownTimeout},
+		{"HTTP_READ_HEADER_TIMEOUT", cfg.HTTPServer.ReadHeaderTimeout},
+		{"HTTP_READ_TIMEOUT", cfg.HTTPServer.ReadTimeout},
+		{"HTTP_WRITE_TIMEOUT", cfg.HTTPServer.WriteTimeout},
+		{"HTTP_IDLE_TIMEOUT", cfg.HTTPServer.IdleTimeout},
+		{"DATABASE_MAX_CONN_LIFETIME", cfg.Database.MaxConnLifetime},
+		{"DATABASE_CONNECT_TIMEOUT", cfg.Database.ConnectTimeout},
+		{"DATABASE_QUERY_TIMEOUT", cfg.Database.QueryTimeout},
+	} {
+		if value.duration <= 0 {
+			return nil, fmt.Errorf("%s must be positive", value.name)
+		}
+	}
+	if cfg.Database.MaxConns <= 0 {
+		return nil, fmt.Errorf("DATABASE_MAX_CONNS must be positive")
+	}
+	if cfg.Database.MinConns < 0 || cfg.Database.MinConns > cfg.Database.MaxConns {
+		return nil, fmt.Errorf("DATABASE_MIN_CONNS must be between 0 and DATABASE_MAX_CONNS")
+	}
+	return cfg, nil
 }
